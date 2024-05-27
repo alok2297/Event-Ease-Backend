@@ -5,7 +5,7 @@ const authRoutes = require('./routes/auth');
 const vendorRoutes = require('./routes/auth');
 
 const app = express();
-const PORT = 3000;
+const PORT = 4000;
 
 // Middleware
 app.use(bodyParser.json());
