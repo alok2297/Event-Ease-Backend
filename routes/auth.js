@@ -2,7 +2,6 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { check, validationResult } = require('express-validator');
 const User = require('../model/User');
-const Vendor = require('../model/Vendor');
 const router = express.Router();
 
 // Register route
@@ -17,7 +16,6 @@ router.post('/register', [
   }
 
   const { email, password } = req.body;
-
   try {
     // Check if the user already exists
     let user = await User.findOne({ email });
@@ -41,46 +39,37 @@ router.post('/register', [
   }
 });
 
-// Signup endpoint for vendor
-router.post('/signup', async (req, res) => {
-  const { brandName, city, vendorType, phoneNumber, email, password } = req.body;
-
-  // Basic validation
-  if (!brandName || !city || !vendorType || !phoneNumber || !email || !password) {
-      return res.status(400).json({ message: 'All fields are required' });
+// login endpoint for users
+router.post('/login', [
+  // Validation checks
+  check('email', 'Please include a valid email').isEmail(),
+  check('password', 'Password is required').exists()
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
   }
+
+  const { email, password } = req.body;
 
   try {
-      // Check if the vendor already exists
-      const existingVendor = await Vendor.findOne({ email });
-      if (existingVendor) {
-          return res.status(400).json({ message: 'Vendor with this email already exists' });
-      }
+    // Check if the user exists
+    let user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ msg: 'Invalid credentials' });
+    }
 
-      // Hash the password
-      const hashedPassword = await bcrypt.hash(password, 10);
+    // Compare passwords
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ msg: 'Invalid credentials' });
+    }
 
-      // Create a new vendor object
-      const newVendor = new Vendor({
-          brandName,
-          city,
-          vendorType,
-          phoneNumber,
-          email,
-          password: hashedPassword
-      });
-
-      // Save the vendor to the database
-      await newVendor.save();
-
-      // Respond with success
-      res.status(201).json({ message: 'Vendor registered successfully' });
+    res.status(200).json({ msg: 'User logged in successfully' });
   } catch (err) {
-      console.error('Error:', err);
-      res.status(500).json({ message: 'Server error' });
+    console.error(err.message);
+    res.status(500).send('Server error');
   }
 });
-
-
 
 module.exports = router;
