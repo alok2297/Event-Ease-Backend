@@ -218,7 +218,6 @@ router.post('/set-info', async (req, res) => {
         );
 
         // Respond with success
-        console.log(existingInfo);
         res.status(201).json({ message: 'Vendor info saved successfully' });
     } catch (err) {
         console.error('Error:', err);
@@ -302,7 +301,6 @@ router.post('/get-prices', async (req, res) => {
     try {
         // Check if the booking exists
         const pricing = await Menu.findOne({ email }).select('-_id -__v -email');
-        console.log(pricing);
         if (!pricing) {
             return res.status(400).json({ message: 'No data found' });
         }
