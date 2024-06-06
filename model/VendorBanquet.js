@@ -18,35 +18,36 @@ const banquetSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  address: {
-    type: String,
-    required: true,
-  },
   fixedCapacity: {
     type: Number,
-    required: true,
   },
   floatingCapacity: {
     type: Number,
-    required: true,
   },
   rooms: {
     type: Number,
-    required: true,
   },
   decorPrice: {
     type: Number,
-    required: true,
   },
   roomPrice: {
     type: Number,
-    required: true,
   },
   banquet: {
     type: String,
-    required: true,
   },
   album: {
+    type: String,
+  },
+  slug: {
+    type: String,
+    required: true,
+  },
+  type: {
+    type: String,
+    required: true,
+  },
+  pricing: {
     type: String,
   },
 });

@@ -6,6 +6,7 @@ const Booking = require('../model/vendorBooking')
 const Menu = require('../model/VendorMenu')
 const Banquet = require('../model/VendorBanquet')
 const Photos = require('../model/VendorPhoto')
+const {slugify, getRandomString} = require('../utility')
 
 const router = express.Router();
 
@@ -76,6 +77,28 @@ router.post('/login', async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 });
+router.post('/admin', async (req, res) => {
+    const { email } = req.body;
+
+    // Basic validation
+    if (!email ) {
+        return res.status(400).json({ message: 'Email is required' });
+    }
+
+    try {
+        // Check if the vendor exists
+        const vendor = await Vendor.findOne({ email }).select('-__v -_id -password -phoneNumber').lean();
+        if (!vendor) {
+            return res.status(400).json({ message: 'Invalid email' });
+        }
+
+        // Respond with success
+        res.status(200).json({ data: vendor});
+    } catch (err) {
+        console.error('Error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 // router.post("/uploader", upload.array('file', 10), async (req, res) => {
 //     IMGUR_CLIENT_ID = "32fb92989b59acb"
@@ -109,10 +132,10 @@ router.post('/login', async (req, res) => {
 // })
 
 router.post('/booking', async (req, res) => {
-    const { email, fullName, contactNumber, functionDate, numberOfGuests, numberOfRooms, functionType, functionTime } = req.body;
+    const { email, userEmail, fullName, contactNumber, functionDate, numberOfGuests, numberOfRooms, functionType, functionTime } = req.body;
 
     // Basic validation
-    if (!email || !fullName || !contactNumber || !functionDate || !numberOfGuests || !functionType || !functionTime) {
+    if (!email || !userEmail || !fullName || !contactNumber || !functionDate || !functionType || !functionTime) {
         return res.status(400).json({ message: 'All fields are required' });
     }
 
@@ -130,6 +153,7 @@ router.post('/booking', async (req, res) => {
 
         // Create a new booking object
         const newBooking = {
+            userEmail,
             fullName,
             contactNumber,
             functionDate,
@@ -178,18 +202,22 @@ router.post('/set-menu', async (req, res) => {
 });
 
 router.post('/set-banquet', async (req, res) => {
-    const { email, name, city, address, fixedCapacity, floatingCapacity, rooms, decorPrice, roomPrice, banquet, album } = req.body;
+    const { email, name, city, address, fixedCapacity, floatingCapacity, rooms, decorPrice, roomPrice, banquet, album, type, pricing } = req.body;
 
     // Basic validation
-    if (!email || !name || !city || !address || !fixedCapacity || !floatingCapacity || !rooms || !decorPrice || !roomPrice || !banquet) {
+    if (!email || !name || !city || !address || !type) {
         return res.status(400).json({ message: 'All fields are required' });
     }
+
+    const slugName = slugify(name);
+    const randStr = getRandomString(6)
+    const slug = `${slugName}-${randStr}`
 
     try {
         // Check if the banquet exists
         const updatedBanquet = await Banquet.findOneAndUpdate(
             { email }, // Filter by email
-            { name, city, address, fixedCapacity, floatingCapacity, rooms, decorPrice, roomPrice, banquet, album }, // Update with these values
+            { name, city, address, fixedCapacity, floatingCapacity, rooms, decorPrice, roomPrice, banquet, album, slug, type, pricing }, // Update with these values
             { new: true, upsert: true, setDefaultsOnInsert: true } // Options
         );
 
@@ -231,40 +259,40 @@ router.post('/set-photos', async (req, res) => {
     // Basic validation
     if (!email) {
         return res.status(400).json({ message: 'Email and at least one image are required' });
-      }
+    }
 
-      try {
+    try {
         // Find the existing photos record for the email
         let existingPhoto = await Photos.findOne({ email });
-    
+
         // If no photo record exists for the email, create a new photo record
         if (!existingPhoto) {
-          existingPhoto = new Photos({
-            email,
-            cover,
-            album: []
-          });
+            existingPhoto = new Photos({
+                email,
+                cover,
+                album: []
+            });
         }
-    
+
         // Update the cover image if provided
         if (cover) {
-          existingPhoto.cover = cover;
+            existingPhoto.cover = cover;
         }
-    
+
         // Add the new images to the images array
-        if(album){
-          existingPhoto.album.push(...album);
+        if (album) {
+            existingPhoto.album.push(...album);
         }
-    
+
         // Save the updated photo document to the database
         await existingPhoto.save();
-    
+
         // Respond with success
         res.status(200).json({ message: 'Images added successfully', data: existingPhoto });
-      } catch (err) {
+    } catch (err) {
         console.error('Error:', err);
         res.status(500).json({ message: 'Server error' });
-      }
+    }
 });
 
 router.post('/get-booking', async (req, res) => {
@@ -356,25 +384,95 @@ router.post('/get-banquet', async (req, res) => {
 
 router.post('/get-photos', async (req, res) => {
     const { email } = req.body;
-  
+
     // Basic validation
     if (!email) {
-      return res.status(400).json({ message: 'Email is required' });
+        return res.status(400).json({ message: 'Email is required' });
     }
-  
+
     try {
-      // Fetch the photo details by email
-      const photo = await Photos.findOne({ email }).select('-__v -email -_id');
-      if (!photo) {
-        return res.status(404).json({ message: 'Photos not found' });
-      }
-  
-      // Respond with the photo details
-      res.status(200).json(photo);
+        // Fetch the photo details by email
+        const photo = await Photos.findOne({ email }).select('-__v -email -_id');
+        if (!photo) {
+            return res.status(404).json({ message: 'Photos not found' });
+        }
+
+        // Respond with the photo details
+        res.status(200).json(photo);
     } catch (err) {
-      console.error('Error:', err);
-      res.status(500).json({ message: 'Server error' });
+        console.error('Error:', err);
+        res.status(500).json({ message: 'Server error' });
     }
-  });
+});
+
+router.get('/get-venues', async (req, res) => {
+
+    try {
+        // Fetch the photo details by email
+        const banquet = await Banquet.find({}).select('-__v -_id').lean();
+        console.log(banquet);
+        const pricing = await Menu.find({}).select('-_id -__v').lean();
+        const photos = await Photos.find({}).select('-__v -_id').lean();
+
+        function mergeArrays(banquet, pricing, photos) {
+            const mergedArray = [];
+        
+            const mergeItem = (item, array) => {
+                const index = mergedArray.findIndex(mergedItem => mergedItem.email === item.email);
+                if (index > -1) {
+                    mergedArray[index] = { ...mergedArray[index], ...item };
+                } else {
+                    mergedArray.push(item);
+                }
+            };
+        
+            banquet.forEach(item => mergeItem(item, mergedArray));
+            pricing.forEach(item => mergeItem(item, mergedArray));
+            photos.forEach(item => mergeItem(item, mergedArray));
+        
+            return mergedArray;
+        }
+
+        const mergedArray = mergeArrays(banquet, pricing, photos)
+
+        //   console.log(mergedArray);
+        if (!banquet || !pricing) {
+            return res.status(404).json({ message: 'Data not found' });
+        }
+
+        // Respond with the photo details
+        res.status(200).json({ data: mergedArray });
+    } catch (err) {
+        console.error('Error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+router.post('/get-venue', async (req, res) => {
+    const { slug } = req.body;
+    try {
+        // Fetch the photo details by email
+        const banquet = await Banquet.findOne({slug}).select('-__v -_id').lean();
+        const email = banquet.email
+        const pricing = await Menu.findOne({email}).select('-_id -__v').lean();
+        const photos = await Photos.findOne({email}).select('-__v -_id -album').lean();
+
+        const data = {
+            ...banquet,
+            ...pricing,
+            ...photos
+        }
+
+        if (!banquet) {
+            return res.status(404).json({ message: 'Data not found' });
+        }
+
+        // Respond with the venue details
+        res.status(200).json({ data: data });
+    } catch (err) {
+        console.error('Error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 module.exports = router;
